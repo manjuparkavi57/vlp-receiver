@@ -2,40 +2,33 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>VLP Live Positioning</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VLP Live Receiver</title>
 <style>
 *{box-sizing:border-box}
-body{margin:0;padding:16px;background:#10141c;color:#f5f7fb;
-font-family:system-ui,sans-serif}
+body{margin:0;padding:16px;background:#10141c;color:#f5f7fb;font-family:system-ui,sans-serif}
 main{max-width:650px;margin:auto}
 h1{font-size:25px;margin:0 0 5px}
+h2{font-size:21px}
 p,.muted{color:#aab5c5;font-size:14px;line-height:1.5}
-.panel{background:#1b2330;border:1px solid #303b4b;
-border-radius:15px;padding:15px;margin-top:14px}
-button{padding:13px;border:0;border-radius:10px;
-background:#79e0bb;color:#10251e;font-weight:700;font-size:15px}
+.panel{background:#1b2330;border:1px solid #303b4b;border-radius:15px;padding:15px;margin-top:14px}
+button{padding:13px;border:0;border-radius:10px;background:#79e0bb;color:#10251e;font-weight:700;font-size:15px}
 button:disabled{opacity:.55}
 .actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.camera{position:relative;margin-top:12px;background:#080b10;
-aspect-ratio:4/3;border-radius:10px;overflow:hidden}
-video,canvas{position:absolute;width:100%;height:100%;
-inset:0;object-fit:fill}
+.camera{position:relative;margin-top:12px;background:#080b10;aspect-ratio:4/3;border-radius:10px;overflow:hidden}
+video,canvas{position:absolute;width:100%;height:100%;inset:0;object-fit:fill}
 canvas{pointer-events:none}
-.reading{padding:12px;margin-top:8px;background:#121923;
-border-left:4px solid #8a95a5;border-radius:9px}
-.white{border-color:#fff}.yellow{border-color:#ffd447}
-.pink{border-color:#ff65d4}
+.reading{padding:12px;margin-top:8px;background:#121923;border-left:4px solid #8a95a5;border-radius:9px}
+.white{border-color:#fff}.yellow{border-color:#ffd447}.pink{border-color:#ff65d4}
 .value{font-size:18px;font-weight:700;margin-top:4px}
-.hero{font-size:32px;font-weight:800;overflow-wrap:anywhere}
-.ok{color:#79e0bb}.warn{color:#ffd447}
-.small{font-size:12px;color:#aab5c5}
+.hero{font-size:29px;font-weight:800;overflow-wrap:anywhere}
+.ok{color:#79e0bb}.warn{color:#ffd447}.small{font-size:12px;color:#aab5c5}
 </style>
 </head>
 <body>
 <main>
-<h1>VLP Live Positioning</h1>
-<div class="muted">Phone camera · Three fixed LEDs · Local processing</div>
+<h1>VLP Live Receiver</h1>
+<div class="muted">Phone camera · Colour-filtered LED tracking</div>
 
 <section class="panel">
 <div id="status" class="warn">Camera not started</div>
@@ -47,99 +40,95 @@ border-left:4px solid #8a95a5;border-radius:9px}
 <video id="video" autoplay playsinline muted></video>
 <canvas id="overlay" width="320" height="240"></canvas>
 </div>
-<p>Point the rear camera straight upward. Keep the phone stationary
-while the Arduino cycles through all three LEDs.</p>
+<p>Point the rear camera upward at the three LEDs. Keep the phone still during calibration.</p>
 </section>
 
 <section class="panel">
-<h2>LED image measurements</h2>
-<div class="reading white">
-White LED <span id="whiteState" class="small">Waiting</span>
-<div id="whiteXY" class="value">—</div>
-</div>
-<div class="reading yellow">
-Yellow LED <span id="yellowState" class="small">Waiting</span>
-<div id="yellowXY" class="value">—</div>
-</div>
-<div class="reading pink">
-Pink LED <span id="pinkState" class="small">Waiting</span>
-<div id="pinkXY" class="value">—</div>
-</div>
-<p class="small">Pixel coordinates use the 320 × 240 processing image.
-Keep the camera still until all three LEDs have been observed.</p>
+<h2>Live LED detections</h2>
+<div class="reading white">White LED <span id="whiteState" class="small">Waiting</span><div id="whiteXY" class="value">—</div></div>
+<div class="reading yellow">Yellow LED <span id="yellowState" class="small">Waiting</span><div id="yellowXY" class="value">—</div></div>
+<div class="reading pink">Pink LED <span id="pinkState" class="small">Waiting</span><div id="pinkXY" class="value">—</div></div>
+<p class="small">Coordinates refer to the 320 × 240 processing image.</p>
 </section>
 
 <section class="panel">
-<div class="muted">Estimated camera position projected onto LED plane</div>
-<div id="position" class="hero">Waiting…</div>
-<div id="calStatus" class="muted">Collecting LED measurements</div>
-<div class="reading">
-<div class="muted">Calibration quality</div>
-<div id="quality" class="value">Not calibrated</div>
-</div>
-<p id="details">
-Physical position is unavailable until all three LED centres are collected.
-</p>
+<div class="muted">Estimated camera projection on LED plane</div>
+<div id="position" class="hero">Not calibrated</div>
+<div id="calStatus" class="muted">Waiting for all three LEDs</div>
+<p id="quality">Position accuracy has not been validated.</p>
 </section>
 
 <section class="panel">
-<h3>Known LED layout</h3>
-<p>White: (0, 0) cm<br>
-Yellow: (12, 0) cm<br>
-Pink: (4.5, 6.614) cm</p>
-<p class="small">The phone-to-ceiling distance is 30 cm.
-This implementation estimates X/Y using an affine image-to-plane mapping;
-it does not estimate height or 3D position.</p>
+<h2>Physical LED layout</h2>
+<p>White: (0, 0) cm<br>Yellow: (12, 0) cm<br>Pink: (4.5, 6.614) cm</p>
+<p class="small">Phone-to-LED-plane distance: 30 cm. This is a 2D affine estimate, not a full 3D positioning solution.</p>
 </section>
 </main>
 
 <script>
+"use strict";
+
 const video = document.getElementById("video");
 const canvas = document.getElementById("overlay");
-const ctx = canvas.getContext("2d",{willReadFrequently:true});
+const ctx = canvas.getContext("2d", {willReadFrequently:true});
 const statusEl = document.getElementById("status");
 
 const W = 320, H = 240;
-const MAX_AGE = 5000;
-let stream = null, running = false, lastFrame = 0;
-let frameCount = 0, fpsStart = performance.now();
+const MAX_AGE = 1800;
+let stream = null;
+let running = false;
+let lastFrame = 0;
+let frameCount = 0;
+let fpsStart = performance.now();
+let exposureMessage = "Automatic exposure";
 
 const leds = [
-  {name:"WHITE",key:"white",X:0,Y:0,
-   test:(h,s,v)=>v>205 && s<65, color:"#ffffff"},
-  {name:"YELLOW",key:"yellow",X:12,Y:0,
-   test:(h,s,v)=>h>=18 && h<=40 && s>65 && v>100,
-   color:"#ffd447"},
-  {name:"PINK",key:"pink",X:4.5,Y:6.614,
-   test:(h,s,v)=>h>=140 && h<=179 && s>45 && v>80,
-   color:"#ff65d4"}
+  {
+    name:"WHITE", key:"white", X:0, Y:0, color:"#ffffff",
+    test:(h,s,v)=>v > 220 && s < 35
+  },
+  {
+    name:"YELLOW", key:"yellow", X:12, Y:0, color:"#ffd447",
+    test:(h,s,v)=>h >= 18 && h <= 40 && s > 85 && v > 110
+  },
+  {
+    name:"PINK", key:"pink", X:4.5, Y:6.614, color:"#ff65d4",
+    test:(h,s,v)=>h >= 140 && h <= 179 && s > 70 && v > 90
+  }
 ];
 
-function freshState(){
-  return leds.map(()=>({history:[],lastSeen:0,point:null}));
+function makeState(){
+  return leds.map(()=>({history:[],point:null,lastSeen:0}));
 }
-let state = freshState();
+let state = makeState();
 
 function rgbToHsv(r,g,b){
-  r/=255;g/=255;b/=255;
-  const mx=Math.max(r,g,b), mn=Math.min(r,g,b), d=mx-mn;
+  r/=255; g/=255; b/=255;
+  const max=Math.max(r,g,b), min=Math.min(r,g,b), d=max-min;
   let h=0;
-  if(d){
-    if(mx===r) h=60*(((g-b)/d)%6);
-    else if(mx===g) h=60*((b-r)/d+2);
+  if(d!==0){
+    if(max===r) h=60*(((g-b)/d)%6);
+    else if(max===g) h=60*((b-r)/d+2);
     else h=60*((r-g)/d+4);
   }
   if(h<0)h+=360;
-  return [h/2,mx===0?0:d/mx*255,mx*255];
+  return [h/2,max===0?0:d/max*255,max*255];
 }
 
-// Find the largest connected region matching one colour.
+function median(values){
+  const a=[...values].sort((x,y)=>x-y);
+  return a[Math.floor(a.length/2)];
+}
+
 function detect(target,pixels){
-  const n=W*H, mask=new Uint8Array(n), seen=new Uint8Array(n);
+  const n=W*H;
+  const mask=new Uint8Array(n);
+  const seen=new Uint8Array(n);
+
   for(let i=0;i<n;i++){
     const j=i*4;
-    const hsv=rgbToHsv(pixels[j],pixels[j+1],pixels[j+2]);
-    if(target.test(...hsv)) mask[i]=1;
+    const [h,s,v]=rgbToHsv(pixels[j],pixels[j+1],pixels[j+2]);
+    if(target.test(h,s,v))mask[i]=1;
   }
 
   const queue=new Int32Array(n);
@@ -147,9 +136,11 @@ function detect(target,pixels){
 
   for(let start=0;start<n;start++){
     if(!mask[start]||seen[start])continue;
+
     let head=0,tail=0,count=0,sx=0,sy=0;
     let minX=W,minY=H,maxX=0,maxY=0;
-    queue[tail++]=start;seen[start]=1;
+    queue[tail++]=start;
+    seen[start]=1;
 
     while(head<tail){
       const p=queue[head++];
@@ -158,40 +149,39 @@ function detect(target,pixels){
       minX=Math.min(minX,x);maxX=Math.max(maxX,x);
       minY=Math.min(minY,y);maxY=Math.max(maxY,y);
 
-      const ns=[
-        x>0?p-1:-1,x<W-1?p+1:-1,
-        y>0?p-W:-1,y<H-1?p+W:-1
+      const neighbours=[
+        x>0?p-1:-1,
+        x<W-1?p+1:-1,
+        y>0?p-W:-1,
+        y<H-1?p+W:-1
       ];
-      for(const q of ns){
+
+      for(const q of neighbours){
         if(q>=0&&mask[q]&&!seen[q]){
-          seen[q]=1;queue[tail++]=q;
+          seen[q]=1;
+          queue[tail++]=q;
         }
       }
     }
 
-    // Reject tiny noise and very large background regions.
-    if(count>=8&&count< W*H*0.15&&
-       (!best||count>best.count)){
-      best={count,x:sx/count,y:sy/count,
-        minX,minY,maxX,maxY};
+    const boxArea=(maxX-minX+1)*(maxY-minY+1);
+    const fill=count/boxArea;
+
+    // Reject noise, large glare patches and diffuse regions.
+    if(count>=8 && count<=900 && boxArea<=1400 &&
+       fill>=0.12 && (!best||count>best.count)){
+      best={count,x:sx/count,y:sy/count,minX,minY,maxX,maxY};
     }
   }
   return best;
 }
 
-function median(values){
-  const a=[...values].sort((x,y)=>x-y);
-  return a[Math.floor(a.length/2)];
-}
-
-// Solve a 3x3 linear system using Gaussian elimination.
 function solve3(A,b){
   const m=A.map((r,i)=>[...r,b[i]]);
   for(let c=0;c<3;c++){
     let pivot=c;
     for(let r=c+1;r<3;r++)
       if(Math.abs(m[r][c])>Math.abs(m[pivot][c]))pivot=r;
-
     if(Math.abs(m[pivot][c])<1e-8)return null;
     [m[c],m[pivot]]=[m[pivot],m[c]];
 
@@ -207,8 +197,6 @@ function solve3(A,b){
   return m.map(r=>r[3]);
 }
 
-// Fit physical LED coordinates = affine(pixel coordinates).
-// Three non-collinear LED correspondences determine this mapping.
 function calibrate(){
   const pts=leds.map((led,i)=>{
     const s=state[i];
@@ -222,57 +210,39 @@ function calibrate(){
   const ay=solve3(A,pts.map(p=>p.Y));
   if(!ax||!ay)return null;
 
-  // Evaluate the physical coordinate corresponding to image centre.
   const u=W/2,v=H/2;
-  const X=ax[0]*u+ax[1]*v+ax[2];
-  const Y=ay[0]*u+ay[1]*v+ay[2];
-
-  // Check how well the fitted transform predicts the known LED points.
-  let err=0;
-  for(const p of pts){
-    const px=ax[0]*p.u+ax[1]*p.v+ax[2];
-    const py=ay[0]*p.u+ay[1]*p.v+ay[2];
-    err+=Math.hypot(px-p.X,py-p.Y)**2;
-  }
-  err=Math.sqrt(err/pts.length);
-
-  // Three points determine an affine transform exactly, so this
-  // residual is not an independent accuracy measurement.
-  return {X,Y,err,ax,ay};
+  return {
+    X:ax[0]*u+ax[1]*v+ax[2],
+    Y:ay[0]*u+ay[1]*v+ay[2]
+  };
 }
 
 function updateUI(){
   leds.forEach((led,i)=>{
     const s=state[i];
-    const fresh=s.point&&Date.now()-s.lastSeen<=MAX_AGE;
+    const fresh=s.point && Date.now()-s.lastSeen<=MAX_AGE;
     document.getElementById(led.key+"State").textContent=
-      fresh?"Recently detected":"Waiting / stale";
+      fresh?"Detected":"Not detected";
     document.getElementById(led.key+"XY").textContent=
       fresh?`(${s.point.x.toFixed(1)}, ${s.point.y.toFixed(1)}) px`:"—";
   });
 
   const c=calibrate();
   if(!c){
-    document.getElementById("position").textContent="Waiting…";
+    document.getElementById("position").textContent="Not calibrated";
     document.getElementById("calStatus").textContent=
-      "Need fresh detections for all three LEDs.";
-    document.getElementById("quality").textContent="Not calibrated";
-    document.getElementById("details").textContent=
-      "Keep the phone still and let the full LED sequence repeat.";
+      "Waiting for recent detections of all three LEDs.";
+    document.getElementById("quality").textContent=
+      "Keep the phone still and allow the complete LED sequence to repeat.";
     return;
   }
 
   document.getElementById("position").textContent=
     `X ${c.X.toFixed(2)} cm · Y ${c.Y.toFixed(2)} cm`;
   document.getElementById("calStatus").textContent=
-    "Affine calibration available · 2D estimate";
+    "Three-colour affine mapping available";
   document.getElementById("quality").textContent=
-    "Three-point fit · accuracy not independently verified";
-  document.getElementById("details").textContent=
-    "This is the image-centre projection onto the LED plane. " +
-    "A three-point affine fit has zero or near-zero fitting residual " +
-    "by construction, so it cannot validate accuracy by itself. " +
-    "Compare against a ruler-measured test position.";
+    "Preliminary estimate only. Validate at a known position before relying on it.";
 }
 
 function processFrame(t){
@@ -291,67 +261,92 @@ function processFrame(t){
     const s=state[i];
     s.lastSeen=Date.now();
     s.history.push({x:result.x,y:result.y});
-    if(s.history.length>9)s.history.shift();
-
+    if(s.history.length>7)s.history.shift();
     s.point={
       x:median(s.history.map(p=>p.x)),
       y:median(s.history.map(p=>p.y))
     };
 
-    ctx.strokeStyle=led.color;ctx.lineWidth=2;
+    ctx.strokeStyle=led.color;
+    ctx.lineWidth=2;
     ctx.strokeRect(result.minX,result.minY,
       result.maxX-result.minX+1,result.maxY-result.minY+1);
     ctx.beginPath();
     ctx.arc(s.point.x,s.point.y,4,0,Math.PI*2);
-    ctx.fillStyle=led.color;ctx.fill();
-
     ctx.fillStyle=led.color;
+    ctx.fill();
     ctx.font="11px sans-serif";
     ctx.fillText(led.name,result.minX,Math.max(12,result.minY-3));
   });
 
   frameCount++;
   if(t-fpsStart>=1000){
-    statusEl.textContent=`Camera active · ${frameCount} frames/s`;
+    statusEl.textContent=`Camera active · ${frameCount} frames/s · ${exposureMessage}`;
     statusEl.className="ok";
-    frameCount=0;fpsStart=t;
+    frameCount=0;
+    fpsStart=t;
   }
   updateUI();
 }
 
+async function requestLowerExposure(track){
+  try{
+    const caps=track.getCapabilities?.();
+    if(!caps?.exposureCompensation){
+      exposureMessage="Phone controls automatic exposure";
+      return;
+    }
+
+    const range=caps.exposureCompensation;
+    const value=Math.max(range.min,Math.min(range.max,-2));
+
+    await track.applyConstraints({
+      advanced:[{exposureCompensation:value}]
+    });
+    exposureMessage=`Exposure compensation ${value}`;
+  }catch(e){
+    exposureMessage="Automatic exposure (manual adjustment unavailable)";
+  }
+}
+
 document.getElementById("start").addEventListener("click",async()=>{
   try{
-    if(!navigator.mediaDevices?.getUserMedia){
-      throw new Error("Open this page through HTTPS in a supported browser.");
-    }
+    document.getElementById("start").disabled=true;
+    statusEl.textContent="Opening camera…";
+
     stream=await navigator.mediaDevices.getUserMedia({
       audio:false,
-      video:{facingMode:{ideal:"environment"},
-        width:{ideal:640},height:{ideal:480}}
+      video:{
+        facingMode:{ideal:"environment"},
+        width:{ideal:640},
+        height:{ideal:480}
+      }
     });
+
+    await requestLowerExposure(stream.getVideoTracks()[0]);
     video.srcObject=stream;
     await video.play();
     running=true;
-    statusEl.textContent="Camera active";
-    statusEl.className="ok";
+    fpsStart=performance.now();
     requestAnimationFrame(processFrame);
   }catch(e){
     statusEl.textContent="Camera error: "+e.message;
     statusEl.className="warn";
+    document.getElementById("start").disabled=false;
   }
 });
 
 document.getElementById("reset").addEventListener("click",()=>{
-  state=freshState();
+  state=makeState();
   ctx.clearRect(0,0,W,H);
   updateUI();
-  statusEl.textContent="Measurements reset. Keep phone still.";
+  statusEl.textContent="Measurements reset";
   statusEl.className="warn";
 });
 
 window.addEventListener("pagehide",()=>{
   running=false;
-  if(stream)stream.getTracks().forEach(t=>t.stop());
+  if(stream)stream.getTracks().forEach(track=>track.stop());
 });
 </script>
 </body>
