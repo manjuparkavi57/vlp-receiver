@@ -2,247 +2,250 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>VLP Live Receiver</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VLP Mobile Receiver</title>
 <style>
 *{box-sizing:border-box}
 body{margin:0;padding:16px;background:#10141c;color:#f5f7fb;font-family:system-ui,sans-serif}
 main{max-width:650px;margin:auto}
-h1{font-size:25px;margin:0 0 5px}
-h2{font-size:21px}
-p,.muted{color:#aab5c5;font-size:14px;line-height:1.5}
+h1{font-size:25px}
 .panel{background:#1b2330;border:1px solid #303b4b;border-radius:15px;padding:15px;margin-top:14px}
-button{padding:13px;border:0;border-radius:10px;background:#79e0bb;color:#10251e;font-weight:700;font-size:15px}
-button:disabled{opacity:.55}
+p,.muted{color:#aab5c5;font-size:14px;line-height:1.5}
+button{padding:13px;border:0;border-radius:10px;background:#79e0bb;color:#10251e;font-weight:700}
 .actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.camera{position:relative;margin-top:12px;background:#080b10;aspect-ratio:4/3;border-radius:10px;overflow:hidden}
-video,canvas{position:absolute;width:100%;height:100%;inset:0;object-fit:fill}
+.camera{position:relative;aspect-ratio:4/3;background:#080b10;overflow:hidden;border-radius:10px;margin-top:12px}
+video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:fill}
 canvas{pointer-events:none}
-.reading{padding:12px;margin-top:8px;background:#121923;border-left:4px solid #8a95a5;border-radius:9px}
-.white{border-color:#fff}.yellow{border-color:#ffd447}.pink{border-color:#ff65d4}
+.reading{padding:12px;margin-top:8px;background:#121923;border-radius:9px;border-left:4px solid #9aa5b5}
+.white{border-color:#fff}.yellow{border-color:#ffd447}
 .value{font-size:18px;font-weight:700;margin-top:4px}
-.hero{font-size:29px;font-weight:800;overflow-wrap:anywhere}
-.ok{color:#79e0bb}.warn{color:#ffd447}.small{font-size:12px;color:#aab5c5}
+.hero{font-size:27px;font-weight:800;overflow-wrap:anywhere}
+.small{font-size:12px;color:#aab5c5}
+.ok{color:#79e0bb}.warn{color:#ffd447}
 </style>
 </head>
 <body>
 <main>
-<h1>VLP Live Receiver</h1>
-<div class="muted">Phone camera · Colour-filtered LED tracking</div>
+<h1>VLP Mobile Receiver</h1>
+<div class="muted">One white LED · Two yellow LEDs · Live camera</div>
 
 <section class="panel">
 <div id="status" class="warn">Camera not started</div>
 <div class="actions">
 <button id="start">Start camera</button>
-<button id="reset">Reset calibration</button>
+<button id="reset">Reset detections</button>
 </div>
 <div class="camera">
 <video id="video" autoplay playsinline muted></video>
-<canvas id="overlay" width="320" height="240"></canvas>
+<canvas id="view" width="320" height="240"></canvas>
 </div>
-<p>Point the rear camera upward at the three LEDs. Keep the phone still during calibration.</p>
+<p>Point the rear camera at the LEDs. Let the Arduino complete several cycles while the phone remains still.</p>
 </section>
 
 <section class="panel">
-<h2>Live LED detections</h2>
-<div class="reading white">White LED <span id="whiteState" class="small">Waiting</span><div id="whiteXY" class="value">—</div></div>
-<div class="reading yellow">Yellow LED <span id="yellowState" class="small">Waiting</span><div id="yellowXY" class="value">—</div></div>
-<div class="reading pink">Pink LED <span id="pinkState" class="small">Waiting</span><div id="pinkXY" class="value">—</div></div>
-<p class="small">Coordinates refer to the 320 × 240 processing image.</p>
+<h2>Live detections</h2>
+<div class="reading white">
+White LED <span id="whiteState" class="small">Waiting</span>
+<div id="whiteXY" class="value">—</div>
+</div>
+<div class="reading yellow">
+Yellow LED 1 <span id="yellow1State" class="small">Learning location</span>
+<div id="yellow1XY" class="value">—</div>
+</div>
+<div class="reading yellow">
+Yellow LED 2 <span id="yellow2State" class="small">Learning location</span>
+<div id="yellow2XY" class="value">—</div>
+</div>
+<p id="learning" class="small">Yellow LEDs are identified by their distinct image locations. Keep the phone still while locations are learned.</p>
 </section>
 
 <section class="panel">
-<div class="muted">Estimated camera projection on LED plane</div>
+<div class="muted">Experimental 2D position estimate</div>
 <div id="position" class="hero">Not calibrated</div>
-<div id="calStatus" class="muted">Waiting for all three LEDs</div>
-<p id="quality">Position accuracy has not been validated.</p>
+<p id="calStatus">Collecting LED locations.</p>
+<p class="small">A live pixel detection is not, by itself, a validated physical position.</p>
 </section>
 
 <section class="panel">
-<h2>Physical LED layout</h2>
-<p>White: (0, 0) cm<br>Yellow: (12, 0) cm<br>Pink: (4.5, 6.614) cm</p>
-<p class="small">Phone-to-LED-plane distance: 30 cm. This is a 2D affine estimate, not a full 3D positioning solution.</p>
+<h3>Physical LED coordinates (cm)</h3>
+<p>White: (0, 0)<br>
+Yellow 1: (12, 0)<br>
+Yellow 2: (4.5, 6.614)</p>
+<p class="small">These coordinates assume the replacement yellow LED occupies the previous pink LED's exact location.</p>
 </section>
 </main>
 
 <script>
 "use strict";
 
-const video = document.getElementById("video");
-const canvas = document.getElementById("overlay");
-const ctx = canvas.getContext("2d", {willReadFrequently:true});
-const statusEl = document.getElementById("status");
+const video=document.getElementById("video");
+const canvas=document.getElementById("view");
+const ctx=canvas.getContext("2d",{willReadFrequently:true});
+const W=320,H=240;
+const MAX_AGE=2500;
+let stream=null,running=false,lastFrame=0;
+let fpsCount=0,fpsStart=performance.now();
 
-const W = 320, H = 240;
-const MAX_AGE = 1800;
-let stream = null;
-let running = false;
-let lastFrame = 0;
-let frameCount = 0;
-let fpsStart = performance.now();
-let exposureMessage = "Automatic exposure";
+const white={
+  name:"WHITE",key:"white",color:"#ffffff",
+  test:(h,s,v)=>v>220&&s<40
+};
+const yellow={
+  name:"YELLOW",color:"#ffd447",
+  test:(h,s,v)=>h>=18&&h<=42&&s>65&&v>90
+};
 
-const leds = [
-  {
-    name:"WHITE", key:"white", X:0, Y:0, color:"#ffffff",
-    test:(h,s,v)=>v > 220 && s < 35
-  },
-  {
-    name:"YELLOW", key:"yellow", X:12, Y:0, color:"#ffd447",
-    test:(h,s,v)=>h >= 18 && h <= 40 && s > 85 && v > 110
-  },
-  {
-    name:"PINK", key:"pink", X:4.5, Y:6.614, color:"#ff65d4",
-    test:(h,s,v)=>h >= 140 && h <= 179 && s > 70 && v > 90
-  }
-];
-
-function makeState(){
-  return leds.map(()=>({history:[],point:null,lastSeen:0}));
-}
-let state = makeState();
+let whitePoint=null,whiteSeen=0;
+let yellowClusters=[];
+let activeYellow=null;
 
 function rgbToHsv(r,g,b){
-  r/=255; g/=255; b/=255;
-  const max=Math.max(r,g,b), min=Math.min(r,g,b), d=max-min;
+  r/=255;g/=255;b/=255;
+  const max=Math.max(r,g,b),min=Math.min(r,g,b),d=max-min;
   let h=0;
   if(d!==0){
-    if(max===r) h=60*(((g-b)/d)%6);
-    else if(max===g) h=60*((b-r)/d+2);
+    if(max===r)h=60*(((g-b)/d)%6);
+    else if(max===g)h=60*((b-r)/d+2);
     else h=60*((r-g)/d+4);
   }
   if(h<0)h+=360;
   return [h/2,max===0?0:d/max*255,max*255];
 }
 
-function median(values){
-  const a=[...values].sort((x,y)=>x-y);
-  return a[Math.floor(a.length/2)];
-}
-
-function detect(target,pixels){
-  const n=W*H;
-  const mask=new Uint8Array(n);
-  const seen=new Uint8Array(n);
-
+function detectComponents(target,pixels){
+  const n=W*H,mask=new Uint8Array(n),seen=new Uint8Array(n);
   for(let i=0;i<n;i++){
     const j=i*4;
     const [h,s,v]=rgbToHsv(pixels[j],pixels[j+1],pixels[j+2]);
     if(target.test(h,s,v))mask[i]=1;
   }
 
-  const queue=new Int32Array(n);
-  let best=null;
-
+  const queue=new Int32Array(n),found=[];
   for(let start=0;start<n;start++){
     if(!mask[start]||seen[start])continue;
-
     let head=0,tail=0,count=0,sx=0,sy=0;
     let minX=W,minY=H,maxX=0,maxY=0;
-    queue[tail++]=start;
-    seen[start]=1;
+    queue[tail++]=start;seen[start]=1;
 
     while(head<tail){
-      const p=queue[head++];
-      const x=p%W,y=Math.floor(p/W);
+      const p=queue[head++],x=p%W,y=Math.floor(p/W);
       count++;sx+=x;sy+=y;
       minX=Math.min(minX,x);maxX=Math.max(maxX,x);
       minY=Math.min(minY,y);maxY=Math.max(maxY,y);
-
-      const neighbours=[
-        x>0?p-1:-1,
-        x<W-1?p+1:-1,
-        y>0?p-W:-1,
-        y<H-1?p+W:-1
-      ];
-
-      for(const q of neighbours){
+      const ns=[x>0?p-1:-1,x<W-1?p+1:-1,y>0?p-W:-1,y<H-1?p+W:-1];
+      for(const q of ns){
         if(q>=0&&mask[q]&&!seen[q]){
-          seen[q]=1;
-          queue[tail++]=q;
+          seen[q]=1;queue[tail++]=q;
         }
       }
     }
 
-    const boxArea=(maxX-minX+1)*(maxY-minY+1);
-    const fill=count/boxArea;
+    const bw=maxX-minX+1,bh=maxY-minY+1;
+    const boxArea=bw*bh,fill=count/boxArea;
 
-    // Reject noise, large glare patches and diffuse regions.
-    if(count>=8 && count<=900 && boxArea<=1400 &&
-       fill>=0.12 && (!best||count>best.count)){
-      best={count,x:sx/count,y:sy/count,minX,minY,maxX,maxY};
+    // Avoid giant glare patches and isolated pixel noise.
+    if(count>=8&&count<=1200&&boxArea<=1800&&fill>=0.10){
+      found.push({
+        x:sx/count,y:sy/count,count,
+        minX,minY,maxX,maxY
+      });
     }
   }
-  return best;
+  return found.sort((a,b)=>b.count-a.count);
 }
 
-function solve3(A,b){
-  const m=A.map((r,i)=>[...r,b[i]]);
-  for(let c=0;c<3;c++){
-    let pivot=c;
-    for(let r=c+1;r<3;r++)
-      if(Math.abs(m[r][c])>Math.abs(m[pivot][c]))pivot=r;
-    if(Math.abs(m[pivot][c])<1e-8)return null;
-    [m[c],m[pivot]]=[m[pivot],m[c]];
-
-    const d=m[c][c];
-    for(let j=c;j<4;j++)m[c][j]/=d;
-
-    for(let r=0;r<3;r++){
-      if(r===c)continue;
-      const f=m[r][c];
-      for(let j=c;j<4;j++)m[r][j]-=f*m[c][j];
-    }
-  }
-  return m.map(r=>r[3]);
+function median(a){
+  const s=[...a].sort((x,y)=>x-y);
+  return s[Math.floor(s.length/2)];
 }
 
-function calibrate(){
-  const pts=leds.map((led,i)=>{
-    const s=state[i];
-    if(!s.point||Date.now()-s.lastSeen>MAX_AGE)return null;
-    return {u:s.point.x,v:s.point.y,X:led.X,Y:led.Y};
-  });
-  if(pts.some(p=>!p))return null;
-
-  const A=pts.map(p=>[p.u,p.v,1]);
-  const ax=solve3(A,pts.map(p=>p.X));
-  const ay=solve3(A,pts.map(p=>p.Y));
-  if(!ax||!ay)return null;
-
-  const u=W/2,v=H/2;
+function smoothPoint(history){
   return {
-    X:ax[0]*u+ax[1]*v+ax[2],
-    Y:ay[0]*u+ay[1]*v+ay[2]
+    x:median(history.map(p=>p.x)),
+    y:median(history.map(p=>p.y))
   };
 }
 
-function updateUI(){
-  leds.forEach((led,i)=>{
-    const s=state[i];
-    const fresh=s.point && Date.now()-s.lastSeen<=MAX_AGE;
-    document.getElementById(led.key+"State").textContent=
-      fresh?"Detected":"Not detected";
-    document.getElementById(led.key+"XY").textContent=
-      fresh?`(${s.point.x.toFixed(1)}, ${s.point.y.toFixed(1)}) px`:"—";
-  });
-
-  const c=calibrate();
-  if(!c){
-    document.getElementById("position").textContent="Not calibrated";
-    document.getElementById("calStatus").textContent=
-      "Waiting for recent detections of all three LEDs.";
-    document.getElementById("quality").textContent=
-      "Keep the phone still and allow the complete LED sequence to repeat.";
-    return;
+// Track two separate yellow image locations across successive LED cycles.
+// A cluster is learned only from a spatially distinct detection.
+function learnYellow(point){
+  const now=Date.now();
+  for(const c of yellowClusters){
+    if(now-c.seen>12000)continue;
+    const d=Math.hypot(point.x-c.x,point.y-c.y);
+    if(d<24){
+      c.history.push(point);
+      if(c.history.length>9)c.history.shift();
+      c.x=median(c.history.map(p=>p.x));
+      c.y=median(c.history.map(p=>p.y));
+      c.seen=now;
+      c.count++;
+      activeYellow=c;
+      return;
+    }
   }
 
-  document.getElementById("position").textContent=
-    `X ${c.X.toFixed(2)} cm · Y ${c.Y.toFixed(2)} cm`;
+  if(yellowClusters.length<2){
+    const c={
+      x:point.x,y:point.y,seen:now,
+      history:[point],count:1
+    };
+    yellowClusters.push(c);
+    activeYellow=c;
+  }else{
+    // Assign new detections to the nearest known location.
+    let best=null,bestDistance=Infinity;
+    for(const c of yellowClusters){
+      const d=Math.hypot(point.x-c.x,point.y-c.y);
+      if(d<bestDistance){bestDistance=d;best=c;}
+    }
+    if(best&&bestDistance<45){
+      best.history.push(point);
+      if(best.history.length>9)best.history.shift();
+      best.x=median(best.history.map(p=>p.x));
+      best.y=median(best.history.map(p=>p.y));
+      best.seen=now;
+      best.count++;
+      activeYellow=best;
+    }
+  }
+}
+
+function drawDetection(point,color,label){
+  ctx.strokeStyle=color;ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(point.x,point.y,8,0,Math.PI*2);
+  ctx.stroke();
+  ctx.fillStyle=color;ctx.font="12px sans-serif";
+  ctx.fillText(label,Math.max(2,point.x-20),Math.max(14,point.y-12));
+}
+
+function updateUI(){
+  const now=Date.now();
+  document.getElementById("whiteState").textContent=
+    whitePoint&&now-whiteSeen<MAX_AGE?"Detected":"Waiting";
+  document.getElementById("whiteXY").textContent=
+    whitePoint&&now-whiteSeen<MAX_AGE?
+    `(${whitePoint.x.toFixed(1)}, ${whitePoint.y.toFixed(1)}) px`:"—";
+
+  for(let i=0;i<2;i++){
+    const c=yellowClusters[i];
+    const fresh=c&&now-c.seen<12000;
+    document.getElementById(`yellow${i+1}State`).textContent=
+      fresh?`Learned · ${c.count} observations`:"Learning location";
+    document.getElementById(`yellow${i+1}XY`).textContent=
+      fresh?`(${c.x.toFixed(1)}, ${c.y.toFixed(1)}) px`:"—";
+  }
+
+  const count=yellowClusters.filter(c=>now-c.seen<12000).length;
+  document.getElementById("learning").textContent=
+    count<2?
+    `Found ${count} of 2 yellow LED locations. Let the sequence repeat.`:
+    "Both yellow image locations learned. Keep the phone still for stable tracking.";
+
+  // Do not fabricate a physical position from colour detections alone.
+  document.getElementById("position").textContent="Calibration required";
   document.getElementById("calStatus").textContent=
-    "Three-colour affine mapping available";
-  document.getElementById("quality").textContent=
-    "Preliminary estimate only. Validate at a known position before relying on it.";
+    "LED tracking is active. A validated camera-to-plane calibration is still required.";
 }
 
 function processFrame(t){
@@ -254,99 +257,74 @@ function processFrame(t){
   ctx.drawImage(video,0,0,W,H);
   const frame=ctx.getImageData(0,0,W,H);
 
-  leds.forEach((led,i)=>{
-    const result=detect(led,frame.data);
-    if(!result)return;
+  const whites=detectComponents(white,frame.data);
+  if(whites.length){
+    const p=whites[0];
+    whitePoint={x:p.x,y:p.y};
+    whiteSeen=Date.now();
+    drawDetection(whitePoint,white.color,"WHITE");
+  }
 
-    const s=state[i];
-    s.lastSeen=Date.now();
-    s.history.push({x:result.x,y:result.y});
-    if(s.history.length>7)s.history.shift();
-    s.point={
-      x:median(s.history.map(p=>p.x)),
-      y:median(s.history.map(p=>p.y))
-    };
+  const yellows=detectComponents(yellow,frame.data);
+  if(yellows.length){
+    // The Arduino lights one LED at a time. Learn whichever yellow
+    // location is visible in this frame, not every yellow-shaped object.
+    const p=yellows[0];
+    learnYellow({x:p.x,y:p.y});
+  }
 
-    ctx.strokeStyle=led.color;
-    ctx.lineWidth=2;
-    ctx.strokeRect(result.minX,result.minY,
-      result.maxX-result.minX+1,result.maxY-result.minY+1);
-    ctx.beginPath();
-    ctx.arc(s.point.x,s.point.y,4,0,Math.PI*2);
-    ctx.fillStyle=led.color;
-    ctx.fill();
-    ctx.font="11px sans-serif";
-    ctx.fillText(led.name,result.minX,Math.max(12,result.minY-3));
+  yellowClusters.forEach((c,i)=>{
+    if(Date.now()-c.seen<12000){
+      drawDetection(c,yellow.color,`YELLOW ${i+1}`);
+    }
   });
 
-  frameCount++;
+  fpsCount++;
   if(t-fpsStart>=1000){
-    statusEl.textContent=`Camera active · ${frameCount} frames/s · ${exposureMessage}`;
-    statusEl.className="ok";
-    frameCount=0;
-    fpsStart=t;
+    document.getElementById("status").textContent=
+      `Camera active · ${fpsCount} frames/s`;
+    document.getElementById("status").className="ok";
+    fpsCount=0;fpsStart=t;
   }
   updateUI();
-}
-
-async function requestLowerExposure(track){
-  try{
-    const caps=track.getCapabilities?.();
-    if(!caps?.exposureCompensation){
-      exposureMessage="Phone controls automatic exposure";
-      return;
-    }
-
-    const range=caps.exposureCompensation;
-    const value=Math.max(range.min,Math.min(range.max,-2));
-
-    await track.applyConstraints({
-      advanced:[{exposureCompensation:value}]
-    });
-    exposureMessage=`Exposure compensation ${value}`;
-  }catch(e){
-    exposureMessage="Automatic exposure (manual adjustment unavailable)";
-  }
 }
 
 document.getElementById("start").addEventListener("click",async()=>{
   try{
     document.getElementById("start").disabled=true;
-    statusEl.textContent="Opening camera…";
-
+    if(!navigator.mediaDevices?.getUserMedia){
+      throw new Error("Open this site using HTTPS.");
+    }
     stream=await navigator.mediaDevices.getUserMedia({
       audio:false,
       video:{
         facingMode:{ideal:"environment"},
-        width:{ideal:640},
-        height:{ideal:480}
+        width:{ideal:640},height:{ideal:480}
       }
     });
-
-    await requestLowerExposure(stream.getVideoTracks()[0]);
     video.srcObject=stream;
     await video.play();
     running=true;
-    fpsStart=performance.now();
     requestAnimationFrame(processFrame);
   }catch(e){
-    statusEl.textContent="Camera error: "+e.message;
-    statusEl.className="warn";
+    document.getElementById("status").textContent="Camera error: "+e.message;
+    document.getElementById("status").className="warn";
     document.getElementById("start").disabled=false;
   }
 });
 
 document.getElementById("reset").addEventListener("click",()=>{
-  state=makeState();
+  whitePoint=null;whiteSeen=0;
+  yellowClusters=[];activeYellow=null;
   ctx.clearRect(0,0,W,H);
   updateUI();
-  statusEl.textContent="Measurements reset";
-  statusEl.className="warn";
+  document.getElementById("status").textContent="Detections reset";
+  document.getElementById("status").className="warn";
 });
 
 window.addEventListener("pagehide",()=>{
   running=false;
-  if(stream)stream.getTracks().forEach(track=>track.stop());
+  if(stream)stream.getTracks().forEach(t=>t.stop());
 });
 </script>
 </body>
