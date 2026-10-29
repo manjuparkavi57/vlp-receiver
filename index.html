@@ -1,39 +1,582 @@
-<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VLP Indoor Navigator</title>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VLP | Indoor Positioning</title>
+
 <style>
-:root{--bg:#090e18;--panel:#111a29;--line:#26354b;--text:#edf4ff;--muted:#8fa2bd;--green:#5cf0bb;--yellow:#ffd65a}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,sans-serif}main{max-width:1100px;margin:auto;padding:18px}header,.head,.actions{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}h1{font-size:22px;margin:0}h2{font-size:15px;margin:0}.muted,.help{color:var(--muted);font-size:12px;line-height:1.6}.layout{display:grid;grid-template-columns:1.5fr 1fr;gap:14px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:15px;margin:14px 0}.room{height:350px;margin-top:12px;border:1px solid var(--line);border-radius:12px;overflow:hidden}.room canvas{width:100%;height:100%;display:block}.camera{position:relative;aspect-ratio:4/3;margin-top:12px;background:#05080d;border-radius:10px;overflow:hidden}.camera video,.camera canvas{position:absolute;width:100%;height:100%;inset:0;object-fit:fill}.camera canvas{pointer-events:none}.btn{border:1px solid var(--line);background:#172235;color:var(--text);padding:10px 12px;border-radius:9px;font-weight:650;font-size:12px}.primary{background:var(--green);color:#08241b}.btn:disabled{opacity:.4}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}.metric{padding:11px;background:#0c1421;border:1px solid var(--line);border-radius:10px;min-width:0}.metric label,.metric small{display:block;color:var(--muted);font-size:10px}.metric strong{display:block;font-size:20px;margin:7px 0;overflow-wrap:anywhere}.row{display:flex;justify-content:space-between;gap:8px;padding:11px 0;border-bottom:1px solid var(--line);font-size:12px}.row:last-child{border:0}.val{text-align:right;overflow-wrap:anywhere}.val small{display:block;color:var(--muted);font-size:10px;margin-top:3px}.tag{font-size:10px;color:var(--yellow);border:1px solid #574b27;padding:6px 8px;border-radius:20px}.notice{margin-top:12px;padding:11px;background:#292516;border:1px solid #574b27;border-radius:10px;color:#e8d69b;font-size:11px;line-height:1.6}@media(max-width:720px){main{padding:12px}.layout{grid-template-columns:1fr}.room{height:300px}.panel{padding:12px}.metric strong{font-size:17px}}
-</style></head><body><main>
-<header><div><h1>VLP <span style="color:var(--green)">/</span> Indoor Navigator</h1><div class="muted">VISIBLE LIGHT POSITIONING · FIXED-HEIGHT PROTOTYPE</div></div><span class="tag" id="top">SYSTEM STANDBY</span></header>
-<div class="layout"><div>
-<section class="panel"><div class="head"><h2>3D room · live marker</h2><span class="tag" id="mode">NOT CALIBRATED</span></div><div class="room" id="room"><canvas id="scene"></canvas></div>
-<div class="actions" style="margin-top:12px"><button class="btn primary" id="start">Start camera</button><button class="btn" id="cal">Calibrate</button><button class="btn" id="track" disabled>Start tracking</button><button class="btn" id="reset">Reset</button></div>
-<p class="help">Keep the camera pointing straight up, at a fixed 30 cm below the LEDs. Hold still during calibration. After calibration, move horizontally and slowly. Drag the 3D room to rotate it.</p></section>
-<section class="panel"><div class="head"><h2>Estimated position</h2><span class="tag" id="pstatus">NOT CALIBRATED</span></div><div class="metrics"><div class="metric"><label>X POSITION</label><strong id="x">—</strong><small>cm</small></div><div class="metric"><label>Y POSITION</label><strong id="y">—</strong><small>cm</small></div><div class="metric"><label>Z HEIGHT</label><strong>30</strong><small>cm assumed</small></div></div><p class="help" id="status">Start the camera to begin.</p><div class="notice" id="accuracy">No position estimate yet. Calibration is required.</div></section>
-</div><div>
-<section class="panel"><div class="head"><h2>Receiver camera</h2><span class="tag" id="camstatus">OFFLINE</span></div><div class="camera"><video id="video" autoplay playsinline muted></video><canvas id="view" width="320" height="240"></canvas></div><p class="help">Allow camera access. Your Arduino should light one LED at a time in the same order: white, yellow 1, yellow 2.</p></section>
-<section class="panel"><h2>Detected beacon centres</h2><div class="row"><span>White LED</span><span class="val" id="wxy">—<small>Waiting</small></span></div><div class="row"><span>Yellow LED 1</span><span class="val" id="y1xy">—<small>Learning</small></span></div><div class="row"><span>Yellow LED 2</span><span class="val" id="y2xy">—<small>Learning</small></span></div><p class="help" id="learn">Wait for all three LED locations to be learned.</p></section>
-<section class="panel"><h2>Known ceiling layout</h2><div class="row"><span>White</span><b>(0, 0) cm</b></div><div class="row"><span>Yellow 1</span><b>(12, 0) cm</b></div><div class="row"><span>Yellow 2</span><b>(4.5, 6.614) cm</b></div><p class="help">Yellow 2 must be on the same side of the White–Yellow 1 line assumed by these coordinates.</p></section>
-</div></div><p class="help">Experimental prototype only. Three calibration points give no independent accuracy check. Missed detections, beacon identity swaps, lens distortion or phone tilt can cause drift.</p></main>
-<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script><script>
+:root {
+  --bg:#090e18;
+  --panel:#111a29;
+  --panel2:#172235;
+  --line:#26354b;
+  --text:#edf4ff;
+  --muted:#8fa2bd;
+  --green:#5cf0bb;
+  --yellow:#ffd65a;
+  --blue:#71aaff;
+  --red:#ff808c;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;background:var(--bg);color:var(--text);
+  font-family:Inter,system-ui,-apple-system,sans-serif;
+}
+button{font:inherit;cursor:pointer}
+button:disabled{opacity:.5;cursor:wait}
+main{max-width:1150px;margin:auto;padding:22px}
+header{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:15px;flex-wrap:wrap;margin-bottom:22px
+}
+.brand{display:flex;align-items:center;gap:12px}
+.logo{
+  width:44px;height:44px;border-radius:14px;
+  display:grid;place-items:center;background:#173c3a;
+  color:var(--green);font-size:24px
+}
+h1{font-size:22px;margin:0;letter-spacing:-.5px}
+.subtitle{color:var(--muted);font-size:12px;margin-top:5px}
+.pill{
+  border:1px solid var(--line);border-radius:30px;
+  padding:8px 12px;font-size:11px;color:var(--muted);
+  display:flex;align-items:center;gap:8px
+}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--yellow)}
+.dot.live{background:var(--green);box-shadow:0 0 10px #5cf0bb66}
+.layout{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(270px,1fr);gap:16px}
+.panel{
+  min-width:0;background:var(--panel);border:1px solid var(--line);
+  border-radius:17px;padding:17px;margin-bottom:16px
+}
+.panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+h2{font-size:15px;margin:0;font-weight:650}
+h3{font-size:13px;margin:0}
+.eyebrow{color:var(--muted);font-size:10px;letter-spacing:1.4px;font-weight:700}
+.tag{
+  font-size:10px;color:var(--yellow);background:#39311b;
+  border:1px solid #5a4c24;border-radius:7px;padding:5px 8px
+}
+.room-wrap{
+  margin-top:14px;position:relative;overflow:hidden;
+  background:radial-gradient(ellipse at 50% 40%,#1b3048 0%,#0d1625 65%);
+  border:1px solid #273750;border-radius:12px;
+  height:370px
+}
+#room{position:absolute;inset:0;width:100%;height:100%;display:block}
+.room-note{
+  position:absolute;left:12px;top:12px;
+  background:#0a1220d9;border:1px solid #33445b;
+  padding:8px 10px;border-radius:8px;font-size:10px;color:#b6c6dc
+}
+.room-legend{
+  position:absolute;bottom:12px;left:12px;right:12px;
+  display:flex;flex-wrap:wrap;gap:13px;
+  background:#0a1220d9;border:1px solid #33445b;
+  padding:9px 11px;border-radius:8px
+}
+.legend{display:flex;align-items:center;gap:6px;font-size:10px;color:#bdc9db}
+.swatch{width:8px;height:8px;border-radius:50%}
+.room-controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.btn{
+  border:1px solid var(--line);border-radius:9px;padding:10px 13px;
+  background:var(--panel2);color:var(--text);font-size:12px;font-weight:650
+}
+.btn.primary{background:var(--green);color:#08241b;border-color:var(--green)}
+.btn:hover{filter:brightness(1.1)}
+.metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.metric{
+  background:#0c1421;border:1px solid var(--line);
+  border-radius:11px;padding:13px;min-width:0
+}
+.metric label{font-size:10px;color:var(--muted);letter-spacing:.7px}
+.metric strong{display:block;font-size:22px;margin-top:8px;overflow-wrap:anywhere}
+.metric small{font-size:10px;color:var(--muted)}
+.camera{
+  position:relative;aspect-ratio:4/3;background:#060a11;
+  border:1px solid var(--line);border-radius:10px;
+  overflow:hidden;margin-top:13px
+}
+video, #view{position:absolute;inset:0;width:100%;height:100%;object-fit:fill}
+#view{pointer-events:none}
+.helper{font-size:11px;line-height:1.6;color:var(--muted);margin:10px 0 0}
+.status-line{font-size:12px;color:var(--muted);margin-top:12px}
+.reading{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:10px;padding:12px 0;border-bottom:1px solid var(--line)
+}
+.reading:last-child{border-bottom:0}
+.led-name{display:flex;align-items:center;gap:9px;font-size:12px}
+.led-dot{width:9px;height:9px;border-radius:50%}
+.led-val{text-align:right;font-size:12px;font-weight:650;overflow-wrap:anywhere}
+.led-val small{display:block;font-size:10px;font-weight:400;color:var(--muted);margin-top:4px}
+.notice{
+  border:1px solid #574b27;background:#292516;border-radius:10px;
+  color:#e8d69b;padding:12px;font-size:11px;line-height:1.6;margin-top:13px
+}
+footer{color:#657994;font-size:10px;line-height:1.7;padding:5px 0 20px}
+@media(max-width:760px){
+  main{padding:14px}
+  .layout{grid-template-columns:1fr}
+  .room-wrap{height:320px}
+  .panel{padding:14px}
+  .metric{padding:10px}
+  .metric strong{font-size:19px}
+}
+@media(max-width:380px){
+  .room-wrap{height:280px}
+  .metric strong{font-size:17px}
+}
+</style>
+</head>
+
+<body>
+<main>
+<header>
+  <div class="brand">
+    <div class="logo">⌖</div>
+    <div>
+      <h1>VLP <span style="color:var(--green)">/</span> Indoor Navigator</h1>
+      <div class="subtitle">VISIBLE LIGHT POSITIONING · MOBILE RECEIVER</div>
+    </div>
+  </div>
+  <div class="pill"><span class="dot" id="liveDot"></span><span id="topStatus">SYSTEM STANDBY</span></div>
+</header>
+
+<div class="layout">
+  <div>
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="eyebrow">SPATIAL VIEW</div>
+          <h2 style="margin-top:6px">Your indoor environment</h2>
+        </div>
+        <span class="tag" id="modeTag">DEMO VIEW</span>
+      </div>
+
+      <div class="room-wrap" id="roomWrap">
+        <canvas id="room" aria-label="Interactive 3D room showing ceiling LEDs and a phone marker"></canvas>
+        <div class="room-note">ROOM 01 · 3D MODEL</div>
+        <div class="room-legend">
+          <span class="legend"><i class="swatch" style="background:white"></i>White LED</span>
+          <span class="legend"><i class="swatch" style="background:#ffd65a"></i>Yellow LEDs</span>
+          <span class="legend"><i class="swatch" style="background:#5cf0bb"></i>Phone marker</span>
+        </div>
+      </div>
+
+      <div class="room-controls">
+        <button class="btn primary" id="start">Start camera tracking</button>
+        <button class="btn" id="reset">Reset detections</button>
+        <button class="btn" id="rotate">Reset room view</button>
+      </div>
+      <p class="helper">Drag the room to rotate the view. The room is a visualization; the phone marker is illustrative until calibration is completed.</p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Estimated position</h2>
+        <span class="tag" id="positionTag">NOT CALIBRATED</span>
+      </div>
+      <div class="metrics" style="margin-top:14px">
+        <div class="metric"><label>X AXIS</label><strong id="posX">—</strong><small>centimetres</small></div>
+        <div class="metric"><label>Y AXIS</label><strong id="posY">—</strong><small>centimetres</small></div>
+        <div class="metric"><label>Z HEIGHT</label><strong id="posZ">—</strong><small>centimetres</small></div>
+      </div>
+      <div class="status-line" id="calStatus">Waiting for camera and calibration.</div>
+      <div class="notice">Position estimates are disabled until the camera geometry is calibrated. A 3D room alone cannot determine the phone's real coordinates.</div>
+    </section>
+  </div>
+
+  <div>
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Receiver camera</h2>
+        <span class="tag" id="cameraTag">OFFLINE</span>
+      </div>
+      <div class="camera">
+        <video id="video" autoplay playsinline muted></video>
+        <canvas id="view" width="320" height="240"></canvas>
+      </div>
+      <div id="status" class="status-line">Camera not started.</div>
+      <p class="helper">Allow camera access and point your rear camera toward the three LEDs. Keep the phone still while their locations are learned.</p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>LED signal detection</h2>
+        <span class="eyebrow">LIVE PIXELS</span>
+      </div>
+      <div class="reading">
+        <div class="led-name"><i class="led-dot" style="background:#fff"></i>White LED</div>
+        <div class="led-val" id="whiteXY">—<small id="whiteState">Waiting</small></div>
+      </div>
+      <div class="reading">
+        <div class="led-name"><i class="led-dot" style="background:#ffd65a"></i>Yellow LED 1</div>
+        <div class="led-val" id="yellow1XY">—<small id="yellow1State">Learning</small></div>
+      </div>
+      <div class="reading">
+        <div class="led-name"><i class="led-dot" style="background:#ffb83e"></i>Yellow LED 2</div>
+        <div class="led-val" id="yellow2XY">—<small id="yellow2State">Learning</small></div>
+      </div>
+      <p class="helper" id="learning">Waiting to learn the two distinct yellow LED image locations.</p>
+    </section>
+
+    <section class="panel">
+      <div class="eyebrow">KNOWN BEACON LAYOUT</div>
+      <h2 style="margin-top:6px">Ceiling LED coordinates</h2>
+      <div class="reading"><div class="led-name">White · Origin</div><div class="led-val">(0, 0) cm</div></div>
+      <div class="reading"><div class="led-name">Yellow · 1</div><div class="led-val">(12, 0) cm</div></div>
+      <div class="reading"><div class="led-name">Yellow · 2</div><div class="led-val">(4.5, 6.614) cm</div></div>
+      <p class="helper">Assumes Yellow LED 2 occupies the previous pink LED's exact physical location and the coordinate orientation is correct.</p>
+    </section>
+  </div>
+</div>
+
+<footer>
+VLP RECEIVER · EXPERIMENTAL PROTOTYPE<br>
+Camera access requires HTTPS or localhost. Detection depends on lighting, exposure, and LED visibility.
+</footer>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
 "use strict";
-const $=id=>document.getElementById(id),video=$("video"),vcan=$("view"),ctx=vcan.getContext("2d",{willReadFrequently:true}),W=320,H=240;
-let stream=null,running=false,tracking=false,calibration=null,lastEstimate=null,lastFrame=0,white=null,whiteAt=0,yellows=[],rotX=-.35,rotY=.65,drag=false,px=0,py=0;
-const beacons=[{x:0,y:0},{x:12,y:0},{x:4.5,y:6.614}],whiteTest=(h,s,v)=>v>220&&s<40,yellowTest=(h,s,v)=>h>=18&&h<=42&&s>65&&v>90;
-function init3d(){if(!window.THREE){$("status").textContent="3D library unavailable; check internet.";return}const el=$("room"),cn=$("scene");const scene=new THREE.Scene();scene.background=new THREE.Color("#0d1625");const cam=new THREE.PerspectiveCamera(45,1,.1,100);cam.position.set(8,7,10);const renderer=new THREE.WebGLRenderer({canvas:cn,antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));function resize(){renderer.setSize(el.clientWidth,el.clientHeight,false);cam.aspect=el.clientWidth/el.clientHeight;cam.updateProjectionMatrix()}resize();window.addEventListener("resize",resize);scene.add(new THREE.AmbientLight(0xffffff,2));const light=new THREE.DirectionalLight(0xc8e2ff,2);light.position.set(4,8,6);scene.add(light);const group=new THREE.Group();scene.add(group);const floor=new THREE.Mesh(new THREE.BoxGeometry(8,.12,6),new THREE.MeshStandardMaterial({color:"#28374b"}));group.add(floor);const grid=new THREE.GridHelper(8,16,"#54718f","#34475e");grid.position.y=.07;group.add(grid);const wm=new THREE.MeshStandardMaterial({color:"#35475e",transparent:true,opacity:.22,side:THREE.DoubleSide});function wall(w,h,d,x,y,z){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),wm);m.position.set(x,y,z);group.add(m)}wall(8,3.4,.08,0,1.7,-3);wall(.08,3.4,6,-4,1.7,0);wall(.08,3.4,6,4,1.7,0);wall(8,.08,6,0,3.4,0);const edge=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(8,3.4,6)),new THREE.LineBasicMaterial({color:"#718aa7"}));edge.position.y=1.7;group.add(edge);[[-1.5,-.8,"#fff"],[.8,-.8,"#ffd65a"],[-.64,.47,"#ffb83e"]].forEach(([x,z,c])=>{const b=new THREE.Mesh(new THREE.SphereGeometry(.11,16,12),new THREE.MeshBasicMaterial({color:c}));b.position.set(x,3.25,z);group.add(b)});const marker=new THREE.Group();const body=new THREE.Mesh(new THREE.BoxGeometry(.34,.12,.52),new THREE.MeshStandardMaterial({color:"#5cf0bb",emissive:"#164e3c"}));marker.add(body);const dot=new THREE.Mesh(new THREE.SphereGeometry(.1,16,12),new THREE.MeshBasicMaterial({color:"#5cf0bb"}));dot.position.y=.2;marker.add(dot);marker.position.set(0,.2,0);group.add(marker);cn.addEventListener("pointerdown",e=>{drag=true;px=e.clientX;py=e.clientY;cn.setPointerCapture(e.pointerId)});cn.addEventListener("pointermove",e=>{if(!drag)return;rotY+=(e.clientX-px)*.009;rotX=Math.max(-1,Math.min(.6,rotX+(e.clientY-py)*.009));px=e.clientX;py=e.clientY});cn.addEventListener("pointerup",()=>drag=false);cn.addEventListener("pointercancel",()=>drag=false);$("reset").addEventListener("dblclick",()=>{rotX=-.35;rotY=.65});function draw(){requestAnimationFrame(draw);group.rotation.set(rotX,rotY,0);cam.lookAt(0,1.4,0);renderer.render(scene,cam)}draw();window.setMarker=(x,y)=>{marker.position.x=Math.max(-3.6,Math.min(3.6,(x-(calibration?.ref.x??x))*.32));marker.position.z=Math.max(-2.6,Math.min(2.6,-(y-(calibration?.ref.y??y))*.32)}}}
-function hsv(r,g,b){r/=255;g/=255;b/=255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;let h=0;if(d){if(mx===r)h=60*(((g-b)/d)%6);else if(mx===g)h=60*((b-r)/d+2);else h=60*((r-g)/d+4)}if(h<0)h+=360;return[h/2,mx?d/mx*255:0,mx*255]}
-function components(test,data){const n=W*H,mask=new Uint8Array(n),seen=new Uint8Array(n),q=new Int32Array(n),out=[];for(let i=0;i<n;i++){let j=i*4,[h,s,v]=hsv(data[j],data[j+1],data[j+2]);if(test(h,s,v))mask[i]=1}for(let st=0;st<n;st++){if(!mask[st]||seen[st])continue;let hd=0,tl=0,c=0,sx=0,sy=0,minx=W,miny=H,maxx=0,maxy=0;q[tl++]=st;seen[st]=1;while(hd<tl){let p=q[hd++],x=p%W,y=Math.floor(p/W);c++;sx+=x;sy+=y;minx=Math.min(minx,x);maxx=Math.max(maxx,x);miny=Math.min(miny,y);maxy=Math.max(maxy,y);for(const z of [x?p-1:-1,x<W-1?p+1:-1,y?p-W:-1,y<H-1?p+W:-1])if(z>=0&&mask[z]&&!seen[z]){seen[z]=1;q[tl++]=z}}let area=(maxx-minx+1)*(maxy-miny+1);if(c>=8&&c<=1200&&area<=1800&&c/area>.1)out.push({x:sx/c,y:sy/c,count:c})}return out.sort((a,b)=>b.count-a.count)}
-function med(a){let s=[...a].sort((x,y)=>x-y);return s[Math.floor(s.length/2)]}
-function learnYellow(p){let now=Date.now();for(const c of yellows){if(now-c.at>12000)continue;if(Math.hypot(p.x-c.x,p.y-c.y)<24){c.hist.push(p);if(c.hist.length>9)c.hist.shift();c.x=med(c.hist.map(p=>p.x));c.y=med(c.hist.map(p=>p.y));c.at=now;c.n++;return}}if(yellows.length<2)yellows.push({x:p.x,y:p.y,at:now,hist:[p],n:1});else{let b=null,d0=Infinity;for(const c of yellows){let d=Math.hypot(p.x-c.x,p.y-c.y);if(d<d0){d0=d;b=c}}if(b&&d0<45){b.hist.push(p);if(b.hist.length>9)b.hist.shift();b.x=med(b.hist.map(p=>p.x));b.y=med(b.hist.map(p=>p.y));b.at=now;b.n++}}}
-function current(){let now=Date.now();return [white&&now-whiteAt<2500?white:null,...[0,1].map(i=>yellows[i]&&now-yellows[i].at<12000?yellows[i]:null)]}
-function ui(){const p=current();function put(id,value,state){const e=$(id);e.replaceChildren(document.createTextNode(value),Object.assign(document.createElement("small"),{textContent:state}))}put("wxy",p[0]?`(${p[0].x.toFixed(1)}, ${p[0].y.toFixed(1)}) px`:"—",p[0]?"Detected":"Waiting");for(let i=0;i<2;i++)put(`y${i+1}xy`,p[i+1]?`(${p[i+1].x.toFixed(1)}, ${p[i+1].y.toFixed(1)}) px`:"—",p[i+1]?`Learned ${yellows[i].n} samples`:"Learning");$("learn").textContent=`Yellow image locations learned: ${yellows.length}/2. Let the Arduino sequence repeat.`}
-function solve(A,b){A=A.map((r,i)=>[...r,b[i]]);for(let i=0;i<3;i++){let p=i;for(let j=i+1;j<3;j++)if(Math.abs(A[j][i])>Math.abs(A[p][i]))p=j;if(Math.abs(A[p][i])<1e-7)throw Error("LEDs appear collinear or too close.");[A[i],A[p]]=[A[p],A[i]];let d=A[i][i];for(let k=i;k<4;k++)A[i][k]/=d;for(let j=0;j<3;j++)if(j!==i){let f=A[j][i];for(let k=i;k<4;k++)A[j][k]-=f*A[i][k]}}return A.map(r=>r[3])}
-function calibrate(){const p=current();if(p.some(x=>!x)){$("status").textContent="Calibration needs white and both yellow LED locations. Hold still and wait for the sequence.";return}try{const M=p.map(v=>[v.x,v.y,1]),ax=solve(M,beacons.map(b=>b.x)),ay=solve(M,beacons.map(b=>b.y));calibration={ax,ay,ref:{x:ax[0]*W/2+ax[1]*H/2+ax[2],y:ay[0]*W/2+ay[1]*H/2+ay[2]}};lastEstimate=calibration.ref;$("track").disabled=false;$("mode").textContent="CALIBRATED";$("pstatus").textContent="CALIBRATED";$("status").textContent="Calibration set. Reference X/Y are based on the current camera view."; $("accuracy").textContent="Three points fit an affine mapping exactly, so calibration has no independent error check. Treat coordinates as experimental.";$("accuracy").className="notice"}catch(e){$("status").textContent="Calibration failed: "+e.message}}
-function estimate(i,p){const a=calibration.ax,b=calibration.ay,dx=p.x-W/2,dy=p.y-H/2;return{x:beacons[i].x-(a[0]*dx+a[1]*dy),y:beacons[i].y-(b[0]*dx+b[1]*dy)}}
-function frame(t){if(!running)return;requestAnimationFrame(frame);if(t-lastFrame<100||video.readyState<2)return;lastFrame=t;ctx.drawImage(video,0,0,W,H);const im=ctx.getImageData(0,0,W,H),ws=components(whiteTest,im.data),ys=components(yellowTest,im.data);if(ws.length){white=ws[0];whiteAt=Date.now();mark(white,"#fff","W")}if(ys.length)learnYellow(ys[0]);yellows.forEach((p,i)=>{if(Date.now()-p.at<12000)mark(p,i?"#ffb83e":"#ffd65a",`Y${i+1}`)});ui();if(tracking&&calibration){const ps=current(),est=[];ps.forEach((p,i)=>{if(p)est.push(estimate(i,p))});if(est.length){const x=med(est.map(p=>p.x)),y=med(est.map(p=>p.y));lastEstimate=lastEstimate?{x:.75*lastEstimate.x+.25*x,y:.75*lastEstimate.y+.25*y}:{x,y};$("x").textContent=lastEstimate.x.toFixed(1);$("y").textContent=lastEstimate.y.toFixed(1);window.setMarker?.(lastEstimate.x,lastEstimate.y);$("pstatus").textContent=est.length>1?"TRACKING · ESTIMATE":"LOW CONFIDENCE";$("status").textContent=`Position estimate from ${est.length} beacon location(s). Keep phone level and move slowly.`;$("accuracy").textContent=est.length>1?"Experimental estimate only. Check the displayed movement against a measured horizontal movement.":"Low confidence: only one beacon estimate is available; a stale or misidentified LED can move the marker incorrectly."}else{$("pstatus").textContent="SIGNAL LOST";$("status").textContent="No usable beacon locations. Point camera at the LEDs."}}}
-function mark(p,color,label){ctx.strokeStyle=color;ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,8,0,Math.PI*2);ctx.stroke();ctx.fillStyle=color;ctx.font="12px sans-serif";ctx.fillText(label,Math.max(2,p.x-10),Math.max(14,p.y-12))}
-$("start").onclick=async()=>{try{$("start").disabled=true;if(!navigator.mediaDevices?.getUserMedia)throw Error("Open over HTTPS.");stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:"environment"},width:{ideal:640},height:{ideal:480}}});video.srcObject=stream;await video.play();running=true;$("camstatus").textContent="CAMERA LIVE";$("top").textContent="RECEIVER ACTIVE";$("status").textContent="Camera connected. Let the Arduino cycle through all LEDs.";requestAnimationFrame(frame)}catch(e){$("status").textContent="Camera error: "+e.message;$("start").disabled=false}};
-$("cal").onclick=calibrate;$("track").onclick=()=>{if(!calibration){$("status").textContent="Calibrate first.";return}tracking=!tracking;$("track").textContent=tracking?"Stop tracking":"Start tracking";$("top").textContent=tracking?"TRACKING":"RECEIVER ACTIVE";$("mode").textContent=tracking?"LIVE ESTIMATE":"CALIBRATED";if(!tracking)$("pstatus").textContent="PAUSED"};
-$("reset").onclick=()=>{white=null;whiteAt=0;yellows=[];calibration=null;lastEstimate=null;tracking=false;$("track").disabled=true;$("track").textContent="Start tracking";$("x").textContent=$("y").textContent="—";$("mode").textContent=$("pstatus").textContent="NOT CALIBRATED";$("status").textContent="Reset. Hold still and wait for all three LED locations.";ctx.clearRect(0,0,W,H)};
-$("room").addEventListener("dblclick",()=>{rotX=-.35;rotY=.65});
-window.addEventListener("pagehide",()=>{running=false;if(stream)stream.getTracks().forEach(t=>t.stop())});init3d();
-</script></body></html>
+
+const $=id=>document.getElementById(id);
+const video=$("video"), canvas=$("view");
+const ctx=canvas.getContext("2d",{willReadFrequently:true});
+const W=320,H=240,MAX_AGE=2500;
+
+let stream=null,running=false,lastFrame=0,fpsCount=0,fpsStart=performance.now();
+let whitePoint=null,whiteSeen=0,yellowClusters=[],activeYellow=null;
+let renderer,scene,camera,phoneMarker,roomGroup,dragging=false;
+let lastX=0,lastY=0,rotX=-0.35,rotY=0.65;
+
+const white={color:"#ffffff",test:(h,s,v)=>v>220&&s<40};
+const yellow={color:"#ffd447",test:(h,s,v)=>h>=18&&h<=42&&s>65&&v>90};
+
+function initRoom(){
+  const el=$("roomWrap"),c=$("room");
+  if(!window.THREE){
+    $("status").textContent="3D library unavailable. Check your internet connection.";
+    $("cameraTag").textContent="3D OFFLINE";
+    return;
+  }
+
+  scene=new THREE.Scene();
+  scene.background=new THREE.Color("#0d1625");
+  camera=new THREE.PerspectiveCamera(45,1,0.1,100);
+  camera.position.set(8,7,10);
+
+  renderer=new THREE.WebGLRenderer({canvas:c,antialias:true,alpha:false});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+  renderer.setSize(el.clientWidth,el.clientHeight,false);
+  renderer.outputColorSpace=THREE.SRGBColorSpace;
+
+  scene.add(new THREE.AmbientLight(0xffffff,2));
+  const light=new THREE.DirectionalLight(0xc8e2ff,2);
+  light.position.set(5,9,6);scene.add(light);
+
+  roomGroup=new THREE.Group();scene.add(roomGroup);
+
+  const floor=new THREE.Mesh(
+    new THREE.BoxGeometry(8,0.12,6),
+    new THREE.MeshStandardMaterial({color:"#28374b",roughness:0.85})
+  );
+  floor.position.y=0;roomGroup.add(floor);
+
+  const grid=new THREE.GridHelper(8,16,"#54718f","#34475e");
+  grid.position.y=0.07;roomGroup.add(grid);
+
+  const wallMat=new THREE.MeshStandardMaterial({
+    color:"#35475e",transparent:true,opacity:0.23,
+    side:THREE.DoubleSide,roughness:1
+  });
+  function wall(w,h,d,x,y,z){
+    const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),wallMat);
+    m.position.set(x,y,z);roomGroup.add(m);
+  }
+  wall(8,3.4,.08,0,1.7,-3);
+  wall(.08,3.4,6,-4,1.7,0);
+  wall(.08,3.4,6,4,1.7,0);
+  wall(8,.08,6,0,3.4,0);
+
+  const edge=new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.BoxGeometry(8,3.4,6)),
+    new THREE.LineBasicMaterial({color:"#718aa7",transparent:true,opacity:.7})
+  );
+  edge.position.y=1.7;roomGroup.add(edge);
+
+  // The measured LED triangle is represented on the ceiling.
+  // Its scale is visual, not the physical room scale.
+  const leds=[
+    {x:-1.5,z:-0.8,color:"#ffffff"},
+    {x:0.8,z:-0.8,color:"#ffd447"},
+    {x:-0.64,z:0.47,color:"#ffb83e"}
+  ];
+  leds.forEach((p,i)=>{
+    const bulb=new THREE.Mesh(
+      new THREE.SphereGeometry(.105,18,12),
+      new THREE.MeshBasicMaterial({color:p.color})
+    );
+    bulb.position.set(p.x,3.25,p.z);roomGroup.add(bulb);
+    const halo=new THREE.Mesh(
+      new THREE.SphereGeometry(.19,18,12),
+      new THREE.MeshBasicMaterial({color:p.color,transparent:true,opacity:.13})
+    );
+    halo.position.copy(bulb.position);roomGroup.add(halo);
+  });
+
+  // Illustrative phone marker; do not interpret as a measured position.
+  phoneMarker=new THREE.Group();
+  const body=new THREE.Mesh(
+    new THREE.BoxGeometry(.32,.12,.52),
+    new THREE.MeshStandardMaterial({color:"#5cf0bb",emissive:"#164e3c",emissiveIntensity:1})
+  );
+  phoneMarker.add(body);
+  const point=new THREE.Mesh(
+    new THREE.SphereGeometry(.10,16,12),
+    new THREE.MeshBasicMaterial({color:"#5cf0bb"})
+  );
+  point.position.y=.18;phoneMarker.add(point);
+  phoneMarker.position.set(0,.22,0);roomGroup.add(phoneMarker);
+
+  // A small vertical marker stem.
+  const stem=new THREE.Mesh(
+    new THREE.CylinderGeometry(.018,.018,.38,8),
+    new THREE.MeshBasicMaterial({color:"#5cf0bb"})
+  );
+  stem.position.y=.32;phoneMarker.add(stem);
+
+  function resize(){
+    if(!renderer)return;
+    const w=el.clientWidth,h=el.clientHeight;
+    renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();
+  }
+  window.addEventListener("resize",resize);
+
+  c.addEventListener("pointerdown",e=>{
+    dragging=true;lastX=e.clientX;lastY=e.clientY;
+    c.setPointerCapture(e.pointerId);
+  });
+  c.addEventListener("pointermove",e=>{
+    if(!dragging)return;
+    rotY+=(e.clientX-lastX)*.009;
+    rotX+=(e.clientY-lastY)*.009;
+    rotX=Math.max(-1.0,Math.min(.6,rotX));
+    lastX=e.clientX;lastY=e.clientY;
+  });
+  c.addEventListener("pointerup",()=>dragging=false);
+  c.addEventListener("pointercancel",()=>dragging=false);
+
+  function animate(){
+    requestAnimationFrame(animate);
+    roomGroup.rotation.set(rotX,rotY,0);
+    camera.lookAt(0,1.4,0);
+    renderer.render(scene,camera);
+  }
+  animate();
+}
+
+function rgbToHsv(r,g,b){
+  r/=255;g/=255;b/=255;
+  const max=Math.max(r,g,b),min=Math.min(r,g,b),d=max-min;
+  let h=0;
+  if(d!==0){
+    if(max===r)h=60*(((g-b)/d)%6);
+    else if(max===g)h=60*((b-r)/d+2);
+    else h=60*((r-g)/d+4);
+  }
+  if(h<0)h+=360;
+  return [h/2,max===0?0:d/max*255,max*255];
+}
+
+function detectComponents(target,pixels){
+  const n=W*H,mask=new Uint8Array(n),seen=new Uint8Array(n);
+  for(let i=0;i<n;i++){
+    const j=i*4;
+    const [h,s,v]=rgbToHsv(pixels[j],pixels[j+1],pixels[j+2]);
+    if(target.test(h,s,v))mask[i]=1;
+  }
+
+  const queue=new Int32Array(n),found=[];
+  for(let start=0;start<n;start++){
+    if(!mask[start]||seen[start])continue;
+    let head=0,tail=0,count=0,sx=0,sy=0;
+    let minX=W,minY=H,maxX=0,maxY=0;
+    queue[tail++]=start;seen[start]=1;
+
+    while(head<tail){
+      const p=queue[head++],x=p%W,y=Math.floor(p/W);
+      count++;sx+=x;sy+=y;
+      minX=Math.min(minX,x);maxX=Math.max(maxX,x);
+      minY=Math.min(minY,y);maxY=Math.max(maxY,y);
+      const ns=[x>0?p-1:-1,x<W-1?p+1:-1,y>0?p-W:-1,y<H-1?p+W:-1];
+      for(const q of ns){
+        if(q>=0&&mask[q]&&!seen[q]){
+          seen[q]=1;queue[tail++]=q;
+        }
+      }
+    }
+
+    const bw=maxX-minX+1,bh=maxY-minY+1;
+    const area=bw*bh,fill=count/area;
+    if(count>=8&&count<=1200&&area<=1800&&fill>=.10){
+      found.push({x:sx/count,y:sy/count,count,minX,minY,maxX,maxY});
+    }
+  }
+  return found.sort((a,b)=>b.count-a.count);
+}
+
+function median(a){
+  const s=[...a].sort((x,y)=>x-y);
+  return s[Math.floor(s.length/2)];
+}
+
+function learnYellow(point){
+  const now=Date.now();
+  for(const c of yellowClusters){
+    if(now-c.seen>12000)continue;
+    const d=Math.hypot(point.x-c.x,point.y-c.y);
+    if(d<24){
+      c.history.push(point);
+      if(c.history.length>9)c.history.shift();
+      c.x=median(c.history.map(p=>p.x));
+      c.y=median(c.history.map(p=>p.y));
+      c.seen=now;c.count++;activeYellow=c;
+      return;
+    }
+  }
+
+  if(yellowClusters.length<2){
+    const c={x:point.x,y:point.y,seen:now,history:[point],count:1};
+    yellowClusters.push(c);activeYellow=c;
+  }else{
+    let best=null,bestDistance=Infinity;
+    for(const c of yellowClusters){
+      const d=Math.hypot(point.x-c.x,point.y-c.y);
+      if(d<bestDistance){bestDistance=d;best=c;}
+    }
+    if(best&&bestDistance<45){
+      best.history.push(point);
+      if(best.history.length>9)best.history.shift();
+      best.x=median(best.history.map(p=>p.x));
+      best.y=median(best.history.map(p=>p.y));
+      best.seen=now;best.count++;activeYellow=best;
+    }
+  }
+}
+
+function drawDetection(p,color,label){
+  ctx.strokeStyle=color;ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(p.x,p.y,8,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle=color;ctx.font="12px sans-serif";
+  ctx.fillText(label,Math.max(2,p.x-20),Math.max(14,p.y-12));
+}
+
+function updateUI(){
+  const now=Date.now();
+  const whiteFresh=whitePoint&&now-whiteSeen<MAX_AGE;
+  $("whiteState").textContent=whiteFresh?"Detected":"Waiting";
+  $("whiteXY").firstChild?.remove();
+  $("whiteXY").prepend(document.createTextNode(
+    whiteFresh?`(${whitePoint.x.toFixed(1)}, ${whitePoint.y.toFixed(1)}) px`:"—"
+  ));
+
+  for(let i=0;i<2;i++){
+    const c=yellowClusters[i],fresh=c&&now-c.seen<12000;
+    $( `yellow${i+1}State`).textContent=fresh?`Learned · ${c.count} samples`:"Learning";
+    const el=$(`yellow${i+1}XY`);
+    el.firstChild?.remove();
+    el.prepend(document.createTextNode(fresh?`(${c.x.toFixed(1)}, ${c.y.toFixed(1)}) px`:"—"));
+  }
+
+  const count=yellowClusters.filter(c=>now-c.seen<12000).length;
+  $("learning").textContent=count<2?
+    `Found ${count} of 2 yellow LED locations. Let the Arduino sequence repeat.`:
+    "Both yellow image locations learned. Pixel detections are available; physical calibration remains pending.";
+
+  $("posX").textContent="—";
+  $("posY").textContent="—";
+  $("posZ").textContent="—";
+  $("positionTag").textContent="NOT CALIBRATED";
+  $("calStatus").textContent=
+    "LED detections do not yet provide validated physical X, Y and Z coordinates.";
+  $("modeTag").textContent="DEMO VIEW";
+}
+
+function processFrame(t){
+  if(!running)return;
+  requestAnimationFrame(processFrame);
+  if(t-lastFrame<80||video.readyState<2)return;
+  lastFrame=t;
+  ctx.drawImage(video,0,0,W,H);
+  const frame=ctx.getImageData(0,0,W,H);
+
+  const whites=detectComponents(white,frame.data);
+  if(whites.length){
+    whitePoint={x:whites[0].x,y:whites[0].y};whiteSeen=Date.now();
+    drawDetection(whitePoint,white.color,"WHITE");
+  }
+
+  const yellows=detectComponents(yellow,frame.data);
+  if(yellows.length)learnYellow({x:yellows[0].x,y:yellows[0].y});
+
+  yellowClusters.forEach((c,i)=>{
+    if(Date.now()-c.seen<12000)drawDetection(c,yellow.color,`YELLOW ${i+1}`);
+  });
+
+  fpsCount++;
+  if(t-fpsStart>=1000){
+    $("status").textContent=`Camera active · ${fpsCount} frames/s`;
+    $("cameraTag").textContent="CAMERA LIVE";
+    $("topStatus").textContent="RECEIVER ACTIVE";
+    $("liveDot").classList.add("live");
+    fpsCount=0;fpsStart=t;
+  }
+  updateUI();
+}
+
+$("start").addEventListener("click",async()=>{
+  try{
+    $("start").disabled=true;
+    if(!navigator.mediaDevices?.getUserMedia)throw new Error("Open this page using HTTPS.");
+    stream=await navigator.mediaDevices.getUserMedia({
+      audio:false,
+      video:{facingMode:{ideal:"environment"},width:{ideal:640},height:{ideal:480}}
+    });
+    video.srcObject=stream;
+    await video.play();
+    running=true;
+    $("status").textContent="Camera connected. Searching for LEDs...";
+    $("cameraTag").textContent="STARTING";
+    requestAnimationFrame(processFrame);
+  }catch(e){
+    $("status").textContent="Camera error: "+e.message;
+    $("cameraTag").textContent="ERROR";
+    $("start").disabled=false;
+  }
+});
+
+$("reset").addEventListener("click",()=>{
+  whitePoint=null;whiteSeen=0;yellowClusters=[];activeYellow=null;
+  ctx.clearRect(0,0,W,H);
+  updateUI();
+  $("status").textContent="Detections cleared. Ready to scan.";
+});
+
+$("rotate").addEventListener("click",()=>{
+  rotX=-.35;rotY=.65;
+});
+
+window.addEventListener("pagehide",()=>{
+  running=false;
+  if(stream)stream.getTracks().forEach(t=>t.stop());
+});
+
+initRoom();
+updateUI();
+</script>
+</body>
+</html>
